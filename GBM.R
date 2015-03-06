@@ -77,6 +77,31 @@ eval(pred.reg, test.orig$registered)
 eval(pred.cas, test.orig$casual)
 
 ####################
+#     visualization    
+####################
+library(ggplot2)
+library(gridExtra)
+# actual vs. prediction
+viz.dat <- data.frame(cbind(predicted=pred, actual=test.orig$cnt))
+ggplot(data = viz.dat, aes(x=actual, y=predicted)) +
+  geom_point() + geom_abline(intercept = 0, slope = 1) +
+  xlab("actual total rental counts") + ylab("predicted total rental count") +
+  ggtitle("Gradient Boosting Method Prediction") 
+
+# relative importance
+viz.reg <- relative.influence(gbm.reg, scale. = T)
+viz.reg <- data.frame(keyName = names(viz.reg), value = viz.reg, row.names = NULL)
+viz.reg <- viz.reg[order(viz.reg$value, decreasing = T),]
+viz.cas <- relative.influence(gbm.cas, scale. = T)
+viz.cas <- data.frame(keyName = names(viz.cas), value = viz.cas, row.names = NULL)
+viz.cas <- viz.cas[order(viz.cas$value, decreasing = T),]
+p.reg <- ggplot(data = viz.reg, aes(x=keyName, y=value)) + geom_histogram(stat="identity") +
+  ggtitle("Prediction for Registered Rental Counts")
+p.cas <- ggplot(data = viz.cas, aes(x=keyName, y=value)) + geom_histogram(stat="identity") +
+  ggtitle("Prediction for Causal Rental Counts")
+grid.arrange(p.reg, p.cas, ncol = 2)
+
+####################
 #     Kaggle
 ####################
 test.kaggle <- data.orig[which(as.integer(substr(datetime,9,10)) >= 20),]
