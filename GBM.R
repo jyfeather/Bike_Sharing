@@ -12,7 +12,10 @@ data.orig <- read.csv(file = "../../Data/hour.csv")
 datetime <- data.orig[,2]
 data.orig <- data.orig[,-c(1,2)] # del inst & date
 names <- c("season", "yr", "mnth", "hr", "holiday", "weekday", "workingday", "weathersit")
+newnames <- c("season", "year", "month", "hour", "holiday", "weekday", "workingday", "weather", 
+              "temp", "atemp", "humidity", "windspeed", "casual", "registered", "count")
 data.orig[,names] <- lapply(data.orig[,names], factor)
+colnames(data.orig) <- newnames
 str(data.orig)
 
 # training set & testing set separation
@@ -25,7 +28,7 @@ test.orig <- data.orig[-train.no,]
 ####################
 library(gbm)
 # registered
-gbm.reg <-gbm(registered ~ .-casual-cnt,
+gbm.reg <-gbm(registered ~ .-casual-count,
                 data=train.orig,
                 var.monotone=NULL, 
                 distribution="poisson",
@@ -40,8 +43,8 @@ gbm.reg <-gbm(registered ~ .-casual-cnt,
                 verbose=TRUE)
 iter.reg <- gbm.perf(gbm.reg, method="cv")
 summary(gbm.reg)
-# causal
-gbm.cas <-gbm(casual~ .-registered-cnt,
+# casual
+gbm.cas <-gbm(casual~ .-registered-count,
                 data=train.orig,
                 var.monotone=NULL, 
                 distribution="poisson",
@@ -72,7 +75,7 @@ pred <- pred.reg + pred.cas
 eval <- function(p, a) {
   return(sqrt(sum((log(p+1)-log(a+1))^2)/length(p)))
 }
-eval(pred, test.orig$cnt)
+eval(pred, test.orig$count)
 eval(pred.reg, test.orig$registered)
 eval(pred.cas, test.orig$casual)
 
@@ -82,23 +85,23 @@ eval(pred.cas, test.orig$casual)
 library(ggplot2)
 library(gridExtra)
 # actual vs. prediction
-viz.dat <- data.frame(cbind(predicted=pred, actual=test.orig$cnt))
+viz.dat <- data.frame(cbind(predicted=pred, actual=test.orig$count))
 ggplot(data = viz.dat, aes(x=actual, y=predicted)) +
   geom_point() + geom_abline(intercept = 0, slope = 1) +
-  xlab("actual total rental counts") + ylab("predicted total rental count") +
+  xlab("actual total rental count") + ylab("predicted total rental count") +
   ggtitle("Gradient Boosting Method Prediction") 
 
 # relative importance
 viz.reg <- relative.influence(gbm.reg, scale. = T)
 viz.reg <- data.frame(keyName = names(viz.reg), value = viz.reg, row.names = NULL)
-viz.reg <- viz.reg[order(viz.reg$value, decreasing = T),]
+viz.reg$keyName <- factor(viz.reg$keyName, levels = viz.reg[order(viz.reg$value),"keyName"])
 viz.cas <- relative.influence(gbm.cas, scale. = T)
 viz.cas <- data.frame(keyName = names(viz.cas), value = viz.cas, row.names = NULL)
-viz.cas <- viz.cas[order(viz.cas$value, decreasing = T),]
+viz.cas$keyName <- factor(viz.cas$keyName, levels = viz.cas[order(viz.cas$value),"keyName"])
 p.reg <- ggplot(data = viz.reg, aes(x=keyName, y=value)) + geom_histogram(stat="identity") +
-  ggtitle("Prediction for Registered Rental Counts")
+  coord_flip() + xlab("") + ylab("Relative Importance") + ggtitle("Registered Rental Count Result")
 p.cas <- ggplot(data = viz.cas, aes(x=keyName, y=value)) + geom_histogram(stat="identity") +
-  ggtitle("Prediction for Causal Rental Counts")
+  coord_flip() + xlab("") + ylab("Relative Importance") + ggtitle("Casual Rental Count Result")
 grid.arrange(p.reg, p.cas, ncol = 2)
 
 ####################
